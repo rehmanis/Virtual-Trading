@@ -99,7 +99,6 @@ tinycss2==1.0.2
 tqdm==4.42.1
 twython==3.7.0
 typed-ast==1.4.1
-ufw==0.35
 unattended-upgrades==0.1
 unity-scope-calculator==0.1
 unity-scope-chromiumbookmarks==0.1
