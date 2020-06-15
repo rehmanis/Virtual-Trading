@@ -41,7 +41,6 @@ Jinja2==2.11.1
 jmespath==0.9.4
 jsbeautifier==1.10.3
 kiwisolver==1.1.0
-language-selector==0.1
 lazy-object-proxy==1.4.3
 lib50==2.0.7
 louis==2.6.4
