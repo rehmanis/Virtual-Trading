@@ -1,0 +1,76 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Summary
+{% endblock %}
+
+{% block main %}
+
+    <script>
+        $(document).ready( function () {
+            $('#stock-summary').DataTable();
+        } );
+    </script>
+
+
+    <table class="table table-borderless table-sm table-info">
+        <thead>
+            <tr>
+                <th title="Total unrealized profit(or loss) for open positions in your account">Open P&amp;L </th>
+                <th title="Today's unrealized profit(or loss) for open positions in your account(expressed as percentage)">&percnt; P&amp;L day </th>
+            </tr>
+        </thead>
+
+        <tbody>
+            <tr>
+                <td {% if (total - start_cash) < 0 %} class="neg-num" {% else %} class="pos-num" {% endif %}>
+                    {{ ((total - start_cash)|abs) | usd }}
+                </td>
+                <td {% if percentPLDay < 0 %} class="neg-num" {% else %} class="pos-num" {% endif %}>
+                    {{ "%.3g" | format(percentPLDay | abs)}}
+
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+
+    <table id="stock-summary" class="table table-hover table-sm display">
+        <thead>
+            <tr class="right-align">
+                <th class="left-align" scope="col">Symbol</th>
+                <th scope="col">Shares</th>
+                <th scope="col">Price</th>
+                <th scope="col">Change</th>
+                <th scope="col">Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+                <tr class="right-align">
+                    <td class="left-align">
+                        <div>{{ row["symbol"] }}</div>
+                        <div>{{ row["name"] }}</div>
+                    </td>
+                    <td> {{ row["shares"] }} </td>
+                    <td> {{ row["price"] | usd}} </td>
+                    <td {% if row["change"] < 0 %} class="neg-num" {% else %} class="pos-num" {% endif %}>{{row["change"] | abs}}</td>
+                    <td> {{ (row["shares"] * row["price"]) | usd}} </td>
+                </tr>
+            {% endfor %}
+
+
+        </tbody>
+        <tfoot>
+            <tr class="right-align">
+                <td class= "left-align"> CASH </td>
+                <td colspan="3"></td>
+                <td> {{ cash | usd }} </td>
+            </tr>
+            <tr class="table-info right-align">
+                <td colspan="4"></td>
+                <td> {{ total | usd }} </td>
+            </tr>
+        </tfoot>
+    </table>
+{% endblock %}
