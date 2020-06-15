@@ -8,7 +8,6 @@ backports.shutil-which==3.5.2
 beautifulsoup4==4.8.2
 blinker==1.3
 botocore==1.14.9
-Brlapi==0.6.4
 bs4==0.0.1
 CairoSVG==2.4.2
 certifi==2019.11.28
