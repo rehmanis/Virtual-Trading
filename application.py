@@ -11,14 +11,21 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from helpers import apology, login_required, lookup, usd
 from datetime import datetime
 
-START_CASH = 10000
+import urllib.parse
+import psycopg2
 
+
+
+START_CASH = 10000
 
 # Configure application
 app = Flask(__name__)
 
 # Ensure templates are auto-reloaded
 app.config["TEMPLATES_AUTO_RELOAD"] = True
+
+
+
 
 # Ensure responses aren't cached
 @app.after_request
@@ -38,11 +45,30 @@ app.config["SESSION_TYPE"] = "filesystem"
 Session(app)
 
 # Configure CS50 Library to use SQLite database
-db = SQL("sqlite:///finance.db")
+print(os.environ["DATABASE_URL"])
+db = SQL(os.environ["DATABASE_URL"])
+#db = SQL("sqlite:///finance.db")
 
 # Make sure API key is set
 if not os.environ.get("API_KEY"):
     raise RuntimeError("API_KEY not set")
+
+
+urllib.parse.uses_netloc.append("postgres")
+url = urllib.parse.urlparse(os.environ["DATABASE_URL"])
+print("---------------")
+print(url)
+print("path: " + url.path[1:])
+print (url.username)
+print(url.password)
+print("---------------------")
+conn = psycopg2.connect( 
+    database = url.path[1:],
+    user = url.username,
+    password = url.password,
+    host = url.hostname,
+    port = url.port
+)
 
 
 @app.route("/")
@@ -52,6 +78,9 @@ def index():
 
     data = db.execute("SELECT username, cash FROM users WHERE id = :id", id=session["user_id"]);
     #username = data[0]["username"]
+    print("----------")
+    print(data)
+    print("------------")
     cash = data[0]["cash"]
     summary = []
     total = cash
@@ -242,6 +271,12 @@ def register():
     # Query database for username
     user_id = db.execute("INSERT INTO users (username, hash) VALUES (?, ?)",
                       request.form.get("username"), password_hash)
+    print("------------------")
+    print("user_id")
+    print (db.execute("SELECT * FROM users WHERE username = :username",
+                      username=request.form.get("username")))
+
+    print("---------------------")
 
     # Remember which user has logged in
     session["user_id"] = user_id
