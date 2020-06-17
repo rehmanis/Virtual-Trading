@@ -119,12 +119,12 @@ def index():
     if rows:
         percentPLDay = dayChange/prevTotPrice * 100
 
-    print("--------")
-    print(entry)
-    print(dayChange)
-    print(prevTotPrice)
-    print(total)
-    print("----------------------------")
+    # print("--------")
+    # print(entry)
+    # print(dayChange)
+    # print(prevTotPrice)
+    # print(total)
+    # print("----------------------------")
 
     return render_template("index.html", rows=summary, cash=cash, total=total, start_cash=START_CASH, percentPLDay=percentPLDay)
 
