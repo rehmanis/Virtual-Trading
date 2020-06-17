@@ -53,7 +53,7 @@
                         <div>{{ row["name"] }}</div>
                     </td>
                     <td> {{ row["shares"] }} </td>
-                    <td> {{ row["price"] | usd}} </td>
+                    <td> {{ "$%s" % row["price"] }} </td>
                     <td {% if row["change"] < 0 %} class="neg-num" {% else %} class="pos-num" {% endif %}>{{row["change"] | abs}}</td>
                     <td> {{ (row["shares"] * row["price"]) | usd}} </td>
                 </tr>

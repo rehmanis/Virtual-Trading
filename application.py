@@ -13,7 +13,8 @@ from datetime import datetime
 
 import urllib.parse
 import psycopg2
-
+import psycopg2.extras
+import decimal
 
 
 START_CASH = 10000
@@ -62,13 +63,19 @@ print("path: " + url.path[1:])
 print (url.username)
 print(url.password)
 print("---------------------")
-conn = psycopg2.connect( 
-    database = url.path[1:],
-    user = url.username,
-    password = url.password,
-    host = url.hostname,
-    port = url.port
-)
+# conn = psycopg2.connect( 
+#     database = url.path[1:],
+#     user = url.username,
+#     password = url.password,
+#     host = url.hostname,
+#     port = url.port
+# )
+
+with psycopg2.connect(database = url.path[1:], user = url.username,
+    password = url.password, host = url.hostname, port = url.port) as conn:
+    conn.autocommit = True
+    cursor = conn.cursor(cursor_factory = psycopg2.extras.DictCursor)
+
 
 
 @app.route("/")
@@ -76,7 +83,10 @@ conn = psycopg2.connect(
 def index():
     """Show portfolio of stocks"""
 
-    data = db.execute("SELECT username, cash FROM users WHERE id = :id", id=session["user_id"]);
+    cursor.execute("SELECT username, cash FROM users WHERE id = %s", (session["user_id"], ));
+    data = cursor.fetchall()
+    # conn.commit()
+
     #username = data[0]["username"]
     print("----------")
     print(data)
@@ -86,21 +96,35 @@ def index():
     total = cash
     dayChange = 0
     prevTotPrice = 0
+    percentPLDay = 0.0;
 
-    rows = db.execute("SELECT symbol, SUM(shares) FROM transcations WHERE id = :id GROUP BY symbol HAVING SUM(shares)>0",
-                      id=session["user_id"])
+    cursor.execute("SELECT symbol, SUM(shares) FROM transcations WHERE id = %s GROUP BY symbol HAVING SUM(shares)>0",
+                      (session["user_id"],))
+    rows = cursor.fetchall()
+
+    print("-----")
+    print(rows)
+    print("-----")
 
     for row in rows:
         company_info = lookup(row["symbol"])
         entry = dict(name = company_info["name"], symbol = company_info["symbol"],
-                     shares = row["SUM(shares)"], price = company_info["price"],
+                     shares = int(row["sum"]), price = company_info["price"],
                      change = company_info["change"], changePercent = company_info["changePercent"])
-        total += (entry["shares"] * entry["price"])
-        dayChange += company_info["change"] * row["SUM(shares)"]
-        prevTotPrice += company_info["previousClose"] * row["SUM(shares)"]
+        total += decimal.Decimal(entry["shares"] * entry["price"])
+        dayChange += company_info["change"] * int(row["sum"])
+        prevTotPrice += company_info["previousClose"] * int(row["sum"])
         summary.append(entry)
 
-    percentPLDay = dayChange/prevTotPrice * 100
+    if rows:
+        percentPLDay = dayChange/prevTotPrice * 100
+
+    print("--------")
+    print(entry)
+    print(dayChange)
+    print(prevTotPrice)
+    print(total)
+    print("----------------------------")
 
     return render_template("index.html", rows=summary, cash=cash, total=total, start_cash=START_CASH, percentPLDay=percentPLDay)
 
@@ -138,20 +162,21 @@ def buy():
         return apology("Company Symbol is not a valid")
 
     # find the row of data for the current user
-    data = db.execute("SELECT * FROM users WHERE id = :id", id=session["user_id"]);
+    cursor.execute("SELECT * FROM users WHERE id = %s", (session["user_id"], ));
+    data = cursor.fetchall()
 
     # ensure the current user has enough money to buy the shares
     if company_info["price"] * shares > data[0]["cash"]:
         return apology("Not enough cash to buy")
 
     # calculate and update the amount of cash left after buy the requested shares
-    cash_left = data[0]["cash"] - (company_info["price"] * shares)
+    cash_left = data[0]["cash"] - decimal.Decimal(company_info["price"] * shares)
 
-    db.execute("UPDATE users SET cash=? WHERE id=?", (cash_left, session["user_id"]))
+    cursor.execute("UPDATE users SET cash=%s WHERE id=%s", (cash_left, session["user_id"]))
 
     # store this transcation to buy the desired shares in a separate table
-    db.execute("INSERT INTO transcations (id, username, symbol, shares, price, time) VALUES (?, ?, ?, ?, ?, ?)",
-               session["user_id"], data[0]["username"], symbol, shares, company_info["price"], datetime.now())
+    cursor.execute("INSERT INTO transcations (id, username, symbol, shares, price, time) VALUES (%s, %s, %s, %s, %s, %s)",
+               (session["user_id"], data[0]["username"], symbol, shares, company_info["price"], datetime.now()))
 
     # redirect to the summary page to show the stock porfolio
     flash("Shares bought!")
@@ -163,7 +188,8 @@ def buy():
 def history():
     """Show history of transactions"""
 
-    rows = db.execute("SELECT * FROM transcations WHERE id = :id", id=session["user_id"])
+    cursor.execute("SELECT * FROM transcations WHERE id = %s", (session["user_id"], ))
+    rows = cursor.fetchall()
 
     return render_template("history.html", rows=rows)
 
@@ -187,8 +213,13 @@ def login():
             return apology("must provide password", 403)
 
         # Query database for username
-        rows = db.execute("SELECT * FROM users WHERE username = :username",
-                          username=request.form.get("username"))
+        cursor.execute("SELECT * FROM users WHERE username = %s",
+                          (request.form.get("username"),))
+        rows = cursor.fetchall()
+
+        print("----------")
+        print(rows)
+        print("----------")
 
         # Ensure username exists and password is correct
         if len(rows) != 1 or not check_password_hash(rows[0]["hash"], request.form.get("password")):
@@ -261,20 +292,22 @@ def register():
     if not check_password_hash(password_hash, request.form.get("confirmation")):
         return apology("two passowrds do not match", 403)
 
-    exiting_row = db.execute("SELECT * FROM users WHERE username = :username",
-                      username=curr_username)
+    exiting_row = cursor.execute("SELECT * FROM users WHERE username = %s", (curr_username,))
+    #conn.commit()
 
     # ensure that username entered does not exist
     if exiting_row:
         return apology("username already exists", 403)
 
     # Query database for username
-    user_id = db.execute("INSERT INTO users (username, hash) VALUES (?, ?)",
-                      request.form.get("username"), password_hash)
+    user_id = cursor.execute("INSERT INTO users (username, hash) VALUES (%s, %s)",
+                      (request.form.get("username"), password_hash))
+    #conn.commit()
+
     print("------------------")
-    print("user_id")
-    print (db.execute("SELECT * FROM users WHERE username = :username",
-                      username=request.form.get("username")))
+    print(user_id)
+    print(cursor.execute("SELECT * FROM users WHERE username = %s", (request.form.get("username"), )))
+    #conn.commit()
 
     print("---------------------")
 
@@ -290,15 +323,16 @@ def register():
 def sell():
     """Sell shares of stock"""
 
-    data = db.execute("SELECT username, cash FROM users WHERE id = :id", id=session["user_id"]);
+    cursor.execute("SELECT username, cash FROM users WHERE id = %s", (session["user_id"], ));
+    data = cursor.fetchall()
     username = data[0]["username"]
     cash = data[0]["cash"]
 
     if request.method == "GET":
 
-        symbols = db.execute("SELECT symbol FROM transcations WHERE id = :id GROUP BY symbol HAVING SUM(shares) > 0",
-              id=session["user_id"])
-
+        cursor.execute("SELECT symbol FROM transcations WHERE id = %s GROUP BY symbol HAVING SUM(shares) > 0",
+              (session["user_id"], ))
+        symbols = cursor.fetchall()
         return render_template("sell.html", symbols=symbols)
 
 
@@ -306,10 +340,11 @@ def sell():
 
         symbol = request.form.get("symbol")
         shares = int(request.form.get("shares"))
-        data = db.execute("SELECT symbol, SUM(shares) FROM transcations WHERE id = :id AND symbol = :symbol GROUP BY symbol",
-              id=session["user_id"], symbol=symbol)
+        cursor.execute("SELECT symbol, SUM(shares) FROM transcations WHERE id = %s AND symbol = %s GROUP BY symbol",
+              (session["user_id"], symbol))
+        data = cursor.fetchall()
 
-        if shares > data[0]["SUM(shares)"]:
+        if shares > data[0]["sum"]:
             return apology("Not enough shares to sell")
 
         # lookup the company information such as share price, name etc.
@@ -321,13 +356,13 @@ def sell():
 
 
         # calculate and update the amount of cash left after buy the requested shares
-        cash_left = cash + (company_info["price"] * shares)
+        cash_left = cash + decimal.Decimal(company_info["price"] * shares)
 
-        db.execute("UPDATE users SET cash=? WHERE id=?", (cash_left, session["user_id"]))
+        cursor.execute("UPDATE users SET cash=%s WHERE id=%s", (cash_left, session["user_id"], ))
 
         # store this transcation to buy the desired shares in a separate table
-        db.execute("INSERT INTO transcations (id, username, symbol, shares, price, time) VALUES (?, ?, ?, ?, ?, ?)",
-                       session["user_id"], username, symbol, -shares, company_info["price"], datetime.now())
+        cursor.execute("INSERT INTO transcations (id, username, symbol, shares, price, time) VALUES (%s, %s, %s, %s, %s, %s)",
+                       (session["user_id"], username, symbol, -shares, company_info["price"], datetime.now()))
 
         return redirect("/")
 
