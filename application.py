@@ -45,10 +45,10 @@ if not os.environ.get("API_KEY"):
 urllib.parse.uses_netloc.append("postgres")
 url = urllib.parse.urlparse(os.environ["DATABASE_URL"])
 
-with psycopg2.connect(database = url.path[1:], user = url.username,
-    password = url.password, host = url.hostname, port = url.port) as conn:
-    conn.autocommit = True
-    cursor = conn.cursor(cursor_factory = psycopg2.extras.DictCursor)
+conn = psycopg2.connect(database = url.path[1:], user = url.username,
+    password = url.password, host = url.hostname, port = url.port)
+conn.autocommit = True
+cursor = conn.cursor(cursor_factory = psycopg2.extras.DictCursor)
 
 @app.route("/")
 @login_required
